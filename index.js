@@ -9,7 +9,7 @@ import {
   ButtonStyle
 } from "discord.js";
 
-// ---------------- CONFIG ----------------
+// ---------------- CONFIG (بدون أسرار) ----------------
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 const {
   mediaChannel,
@@ -18,9 +18,9 @@ const {
   checkInterval
 } = config;
 
-// ---------------- ENV (Secrets on Render) ----------------
-const token = process.env.token;                // Discord Bot Token
-const youtubeApiKey = process.env.youtubeApiKey; // YouTube API Key
+// ---------------- ENV (من Render Secrets) ----------------
+const token = process.env.token;                
+const youtubeApiKey = process.env.youtubeApiKey;
 
 if (!token) console.log("❌ ERROR: Missing token in Render ENV");
 if (!youtubeApiKey) console.log("❌ ERROR: Missing youtubeApiKey in Render ENV");
@@ -40,15 +40,15 @@ let lastYoutubeVideo = "";
 let lastTikTokVideo = "";
 
 // ===================================================================
-//                    📌 SEND MESSAGE WITH BUTTON
+//                    📌 SEND YOUTUBE MESSAGE
 // ===================================================================
-async function sendMedia(platform, title, link, thumbnail) {
+async function sendYouTube(title, link, thumbnail) {
   const channel = client.channels.cache.get(mediaChannel);
   if (!channel) return console.log("❌ Media channel not found!");
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setLabel("مشاهدة الآن")
+      .setLabel("🎬 مشاهدة على اليوتيوب")
       .setStyle(ButtonStyle.Link)
       .setURL(link)
   );
@@ -57,18 +57,50 @@ async function sendMedia(platform, title, link, thumbnail) {
     content: "@everyone",
     embeds: [
       {
-        title: `📢 جديد ${platform}: ${title}`,
+        title: "🎥 فيديو جديد على اليوتيوب!",
+        description: `**${title}**`,
         url: link,
-        description: "🎬 **تم نشر فيديو جديد الآن!**",
-        color: 0xff0000,
+        color: 0xff0000, 
         image: { url: thumbnail },
-        footer: { text: `${platform} Auto Media Bot` }
+        footer: { text: "YouTube Auto Poster" }
       }
     ],
     components: [row]
   });
 
-  console.log(`📢 Sent new ${platform} video: ${title}`);
+  console.log("📢 YouTube Sent:", title);
+}
+
+// ===================================================================
+//                    📌 SEND TIKTOK MESSAGE
+// ===================================================================
+async function sendTikTok(title, link, thumbnail) {
+  const channel = client.channels.cache.get(mediaChannel);
+  if (!channel) return console.log("❌ Media channel not found!");
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel("🎵 مشاهدة على تيك توك")
+      .setStyle(ButtonStyle.Link)
+      .setURL(link)
+  );
+
+  await channel.send({
+    content: "@everyone",
+    embeds: [
+      {
+        title: "🎵 مقطع جديد على تيك توك!",
+        description: `**${title}**`,
+        url: link,
+        color: 0x00ffff,
+        image: { url: thumbnail },
+        footer: { text: "TikTok Auto Poster" }
+      }
+    ],
+    components: [row]
+  });
+
+  console.log("📢 TikTok Sent:", title);
 }
 
 // ===================================================================
@@ -88,7 +120,7 @@ async function checkYouTube() {
 
     if (videoId !== lastYoutubeVideo) {
       lastYoutubeVideo = videoId;
-      sendMedia("YouTube", title, `https://www.youtube.com/watch?v=${videoId}`, thumbnail);
+      sendYouTube(title, `https://www.youtube.com/watch?v=${videoId}`, thumbnail);
     }
   } catch (err) {
     console.log("YouTube Error:", err.message);
@@ -108,12 +140,14 @@ async function checkTikTok() {
 
     const videoId = data.id;
     const title = data.title || "TikTok Video";
-    const link = data.play;
     const cover = data.cover;
+
+    // رابط تيك توك الرسمي
+    const tiktokUrl = `https://www.tiktok.com/@${tiktokUsername}/video/${videoId}`;
 
     if (videoId !== lastTikTokVideo) {
       lastTikTokVideo = videoId;
-      sendMedia("TikTok", title, link, cover);
+      sendTikTok(title, tiktokUrl, cover);
     }
   } catch (err) {
     console.log("TikTok Error:", err.message);
