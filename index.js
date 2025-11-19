@@ -18,7 +18,7 @@ const {
   checkInterval
 } = config;
 
-// ---------------- ENV (من Render Secrets) ----------------
+// ---------------- ENV (Render Secrets) ----------------
 const token = process.env.token;                
 const youtubeApiKey = process.env.youtubeApiKey;
 
@@ -60,7 +60,7 @@ async function sendYouTube(title, link, thumbnail) {
         title: "🎥 فيديو جديد على اليوتيوب!",
         description: `**${title}**`,
         url: link,
-        color: 0xff0000, 
+        color: 0xff0000,
         image: { url: thumbnail },
         footer: { text: "YouTube Auto Poster" }
       }
@@ -128,7 +128,7 @@ async function checkYouTube() {
 }
 
 // ===================================================================
-//                    📌 CHECK TIKTOK
+//                    📌 CHECK TIKTOK (REAL ID FIXED)
 // ===================================================================
 async function checkTikTok() {
   try {
@@ -138,15 +138,18 @@ async function checkTikTok() {
     const data = res.data.data.videos[0];
     if (!data) return;
 
-    const videoId = data.id;
+    // ID الحقيقي للفيديو من TikTok
+    const realId = data.video_id || data.aweme_id;
+    if (!realId) return console.log("❌ Can't find real TikTok ID!");
+
     const title = data.title || "TikTok Video";
     const cover = data.cover;
 
-    // رابط تيك توك الرسمي
-    const tiktokUrl = `https://www.tiktok.com/@${tiktokUsername}/video/${videoId}`;
+    // رابط تيك توك الرسمي الصحيح
+    const tiktokUrl = `https://www.tiktok.com/@${tiktokUsername}/video/${realId}`;
 
-    if (videoId !== lastTikTokVideo) {
-      lastTikTokVideo = videoId;
+    if (realId !== lastTikTokVideo) {
+      lastTikTokVideo = realId;
       sendTikTok(title, tiktokUrl, cover);
     }
   } catch (err) {
