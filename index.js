@@ -18,8 +18,13 @@ const {
   checkInterval
 } = config;
 
-// ---------------- ENV (Render Secrets) ----------------
-const token = process.env.token;                
+// ---------------- CACHE SYSTEM ----------------
+let cache = JSON.parse(fs.readFileSync("./cache.json", "utf8"));
+let lastYoutubeVideo = cache.lastYoutubeVideo;
+let lastTikTokVideo = cache.lastTikTokVideo;
+
+// ---------------- ENV (Secrets on Render) ----------------
+const token = process.env.token;
 const youtubeApiKey = process.env.youtubeApiKey;
 
 if (!token) console.log("❌ ERROR: Missing token in Render ENV");
@@ -35,9 +40,12 @@ const app = express();
 app.get("/", (req, res) => res.send("Media Bot Running!"));
 app.listen(process.env.PORT || 3000);
 
-// ---------------- CACHE ----------------
-let lastYoutubeVideo = "";
-let lastTikTokVideo = "";
+// ===================================================================
+//                    📌 SAVE CACHE TO FILE
+// ===================================================================
+function saveCache() {
+  fs.writeFileSync("./cache.json", JSON.stringify(cache, null, 2));
+}
 
 // ===================================================================
 //                    📌 SEND YOUTUBE MESSAGE
@@ -120,6 +128,9 @@ async function checkYouTube() {
 
     if (videoId !== lastYoutubeVideo) {
       lastYoutubeVideo = videoId;
+      cache.lastYoutubeVideo = videoId;
+      saveCache();
+
       sendYouTube(title, `https://www.youtube.com/watch?v=${videoId}`, thumbnail);
     }
   } catch (err) {
@@ -138,18 +149,19 @@ async function checkTikTok() {
     const data = res.data.data.videos[0];
     if (!data) return;
 
-    // ID الحقيقي للفيديو من TikTok
     const realId = data.video_id || data.aweme_id;
     if (!realId) return console.log("❌ Can't find real TikTok ID!");
 
     const title = data.title || "TikTok Video";
     const cover = data.cover;
 
-    // رابط تيك توك الرسمي الصحيح
     const tiktokUrl = `https://www.tiktok.com/@${tiktokUsername}/video/${realId}`;
 
     if (realId !== lastTikTokVideo) {
       lastTikTokVideo = realId;
+      cache.lastTikTokVideo = realId;
+      saveCache();
+
       sendTikTok(title, tiktokUrl, cover);
     }
   } catch (err) {
