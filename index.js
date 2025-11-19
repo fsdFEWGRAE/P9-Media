@@ -12,13 +12,18 @@ import {
 // ---------------- CONFIG ----------------
 const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
 const {
-  token,
   mediaChannel,
   youtubeChannelId,
-  youtubeApiKey,
   tiktokUsername,
   checkInterval
 } = config;
+
+// ---------------- ENV (Secrets on Render) ----------------
+const token = process.env.token;                // Discord Bot Token
+const youtubeApiKey = process.env.youtubeApiKey; // YouTube API Key
+
+if (!token) console.log("❌ ERROR: Missing token in Render ENV");
+if (!youtubeApiKey) console.log("❌ ERROR: Missing youtubeApiKey in Render ENV");
 
 // ---------------- DISCORD CLIENT ----------------
 const client = new Client({
@@ -41,7 +46,6 @@ async function sendMedia(platform, title, link, thumbnail) {
   const channel = client.channels.cache.get(mediaChannel);
   if (!channel) return console.log("❌ Media channel not found!");
 
-  // زر مشاهدة الآن
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setLabel("مشاهدة الآن")
@@ -55,8 +59,8 @@ async function sendMedia(platform, title, link, thumbnail) {
       {
         title: `📢 جديد ${platform}: ${title}`,
         url: link,
-        description: "🎬 **تم نشر فيديو جديد للتو!**",
-        color: 0xff0000, // الخط الأحمر
+        description: "🎬 **تم نشر فيديو جديد الآن!**",
+        color: 0xff0000,
         image: { url: thumbnail },
         footer: { text: `${platform} Auto Media Bot` }
       }
@@ -104,12 +108,12 @@ async function checkTikTok() {
 
     const videoId = data.id;
     const title = data.title || "TikTok Video";
-    const url = data.play;
+    const link = data.play;
     const cover = data.cover;
 
     if (videoId !== lastTikTokVideo) {
       lastTikTokVideo = videoId;
-      sendMedia("TikTok", title, url, cover);
+      sendMedia("TikTok", title, link, cover);
     }
   } catch (err) {
     console.log("TikTok Error:", err.message);
@@ -130,4 +134,5 @@ client.on("ready", () => {
   console.log(`⏱️ Checking every ${checkInterval} seconds...`);
 });
 
+// ===================================================================
 client.login(token);
