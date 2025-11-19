@@ -1,8 +1,8 @@
 {
-  "token": "توكن_البوت",
+  "token": "YOUR_BOT_TOKEN_HERE",
   "mediaChannel": "1438169828350361641",
   "youtubeChannelId": "UC5j-_SL9gNSR8i3K85cAY-g",
-  "youtubeApiKey": "حط_مفتاح_يوتيوب_هنا",
+  "youtubeApiKey": "YOUR_YOUTUBE_API_KEY_HERE",
   "tiktokUsername": "p9store1",
   "checkInterval": 60
 }
