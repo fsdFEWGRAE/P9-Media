@@ -9,8 +9,15 @@ import {
   ButtonStyle
 } from "discord.js";
 
-// ---------------- CONFIG (بدون أسرار) ----------------
-const config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
+// ============ قراءة الإعدادات من config.json ============
+let config;
+try {
+  config = JSON.parse(fs.readFileSync("./config.json", "utf8"));
+} catch (err) {
+  console.error("❌ لا يمكن قراءة config.json:", err.message);
+  process.exit(1);
+}
+
 const {
   mediaChannel,
   youtubeChannelId,
@@ -18,41 +25,72 @@ const {
   checkInterval
 } = config;
 
-// ---------------- CACHE SYSTEM ----------------
-let cache = JSON.parse(fs.readFileSync("./cache.json", "utf8"));
-let lastYoutubeVideo = cache.lastYoutubeVideo;
-let lastTikTokVideo = cache.lastTikTokVideo;
+// ============ قراءة حالة آخر فيديوهات من state.json ============
+let state = {
+  lastYoutubeVideo: "",
+  lastTikTokVideo: ""
+};
 
-// ---------------- ENV (Secrets on Render) ----------------
+try {
+  if (fs.existsSync("./state.json")) {
+    const raw = fs.readFileSync("./state.json", "utf8");
+    state = JSON.parse(raw);
+  } else {
+    fs.writeFileSync("./state.json", JSON.stringify(state, null, 2));
+  }
+} catch (err) {
+  console.error("❌ مشكلة في state.json:", err.message);
+}
+
+let lastYoutubeVideo = state.lastYoutubeVideo || "";
+let lastTikTokVideo = state.lastTikTokVideo || "";
+
+// دالة حفظ الحالة
+function saveState() {
+  try {
+    fs.writeFileSync(
+      "./state.json",
+      JSON.stringify(
+        {
+          lastYoutubeVideo,
+          lastTikTokVideo
+        },
+        null,
+        2
+      )
+    );
+  } catch (err) {
+    console.error("❌ فشل حفظ state.json:", err.message);
+  }
+}
+
+// ============ المتغيرات السرية من Render ENV ============
 const token = process.env.token;
 const youtubeApiKey = process.env.youtubeApiKey;
 
-if (!token) console.log("❌ ERROR: Missing token in Render ENV");
-if (!youtubeApiKey) console.log("❌ ERROR: Missing youtubeApiKey in Render ENV");
+if (!token) console.log("❌ ERROR: متغير ENV اسمه token غير موجود في Render");
+if (!youtubeApiKey)
+  console.log("❌ ERROR: متغير ENV اسمه youtubeApiKey غير موجود في Render");
 
-// ---------------- DISCORD CLIENT ----------------
+// ============ إعداد عميل ديسكورد ============
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
 
-// ---------------- KEEP ALIVE (Render) ----------------
+// ============ Keep Alive لـ Render ============
 const app = express();
 app.get("/", (req, res) => res.send("Media Bot Running!"));
 app.listen(process.env.PORT || 3000);
 
 // ===================================================================
-//                    📌 SAVE CACHE TO FILE
-// ===================================================================
-function saveCache() {
-  fs.writeFileSync("./cache.json", JSON.stringify(cache, null, 2));
-}
-
-// ===================================================================
-//                    📌 SEND YOUTUBE MESSAGE
+//                    🌟 رسالة اليوتيوب
 // ===================================================================
 async function sendYouTube(title, link, thumbnail) {
   const channel = client.channels.cache.get(mediaChannel);
-  if (!channel) return console.log("❌ Media channel not found!");
+  if (!channel) {
+    console.log("❌ لم يتم العثور على روم الميديا");
+    return;
+  }
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -76,15 +114,18 @@ async function sendYouTube(title, link, thumbnail) {
     components: [row]
   });
 
-  console.log("📢 YouTube Sent:", title);
+  console.log("✅ تم إرسال فيديو يوتيوب:", title);
 }
 
 // ===================================================================
-//                    📌 SEND TIKTOK MESSAGE
+//                    🌟 رسالة التيكتوك
 // ===================================================================
 async function sendTikTok(title, link, thumbnail) {
   const channel = client.channels.cache.get(mediaChannel);
-  if (!channel) return console.log("❌ Media channel not found!");
+  if (!channel) {
+    console.log("❌ لم يتم العثور على روم الميديا");
+    return;
+  }
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -108,80 +149,103 @@ async function sendTikTok(title, link, thumbnail) {
     components: [row]
   });
 
-  console.log("📢 TikTok Sent:", title);
+  console.log("✅ تم إرسال فيديو تيك توك:", title);
 }
 
 // ===================================================================
-//                    📌 CHECK YOUTUBE
+//                    🔍 فحص يوتيوب
 // ===================================================================
 async function checkYouTube() {
   try {
     const url = `https://www.googleapis.com/youtube/v3/search?key=${youtubeApiKey}&channelId=${youtubeChannelId}&order=date&part=snippet&type=video&maxResults=1`;
     const res = await axios.get(url);
 
-    const video = res.data.items[0];
+    const video = res.data.items?.[0];
     if (!video) return;
 
     const videoId = video.id.videoId;
     const title = video.snippet.title;
-    const thumbnail = video.snippet.thumbnails.high.url;
+    const thumbnail =
+      video.snippet.thumbnails?.maxres?.url ||
+      video.snippet.thumbnails?.high?.url ||
+      video.snippet.thumbnails?.default?.url;
 
-    if (videoId !== lastYoutubeVideo) {
-      lastYoutubeVideo = videoId;
-      cache.lastYoutubeVideo = videoId;
-      saveCache();
+    if (!videoId) return;
 
-      sendYouTube(title, `https://www.youtube.com/watch?v=${videoId}`, thumbnail);
+    // منع التكرار
+    if (videoId === lastYoutubeVideo) {
+      // console.log("يوتيوب: لا يوجد فيديو جديد");
+      return;
     }
+
+    // تحديث آخر فيديو وتخزينه
+    lastYoutubeVideo = videoId;
+    saveState();
+
+    const link = `https://www.youtube.com/watch?v=${videoId}`;
+    await sendYouTube(title, link, thumbnail);
   } catch (err) {
     console.log("YouTube Error:", err.message);
   }
 }
 
 // ===================================================================
-//                    📌 CHECK TIKTOK (REAL ID FIXED)
+//                    🔍 فحص تيك توك
 // ===================================================================
 async function checkTikTok() {
   try {
     const api = `https://www.tikwm.com/api/user/posts/?unique_id=${tiktokUsername}&count=1`;
     const res = await axios.get(api);
 
-    const data = res.data.data.videos[0];
+    const data = res.data?.data?.videos?.[0];
     if (!data) return;
 
     const realId = data.video_id || data.aweme_id;
-    if (!realId) return console.log("❌ Can't find real TikTok ID!");
+    if (!realId) {
+      console.log("❌ لا يمكن تحديد ID الحقيقي لفيديو تيكتوك");
+      return;
+    }
 
     const title = data.title || "TikTok Video";
     const cover = data.cover;
 
     const tiktokUrl = `https://www.tiktok.com/@${tiktokUsername}/video/${realId}`;
 
-    if (realId !== lastTikTokVideo) {
-      lastTikTokVideo = realId;
-      cache.lastTikTokVideo = realId;
-      saveCache();
-
-      sendTikTok(title, tiktokUrl, cover);
+    // منع التكرار
+    if (realId === lastTikTokVideo) {
+      // console.log("تيكتوك: لا يوجد فيديو جديد");
+      return;
     }
+
+    lastTikTokVideo = realId;
+    saveState();
+
+    await sendTikTok(title, tiktokUrl, cover);
   } catch (err) {
     console.log("TikTok Error:", err.message);
   }
 }
 
 // ===================================================================
-//                    ⏳ START CHECKING
+//                    🚀 تشغيل البوت
 // ===================================================================
 client.on("ready", () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
-  setInterval(() => {
+  const intervalMs = (Number(checkInterval) || 60) * 1000;
+
+  // أول فحص بعد التشغيل بدقايق بسيطة عشان ما يسبام وقت كل Deploy
+  setTimeout(() => {
     checkYouTube();
     checkTikTok();
-  }, checkInterval * 1000);
 
-  console.log(`⏱️ Checking every ${checkInterval} seconds...`);
+    setInterval(() => {
+      checkYouTube();
+      checkTikTok();
+    }, intervalMs);
+  }, 5000);
+
+  console.log(`⏱️ سيتم الفحص كل ${intervalMs / 1000} ثانية`);
 });
 
-// ===================================================================
 client.login(token);
